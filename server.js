@@ -6,51 +6,35 @@ let seguidores = [];
 
 app.use(express.json());
 
-// --- Helper: normaliza el username para comparaciones/almacenado
-const normalizeUsername = (u = '') => {
-  const trimmed = String(u).trim();
-  if (!trimmed) return '';
-  // quita @ repetidos y fuerza minúsculas; añade un único '@' delante
-  const noAt = trimmed.replace(/^@+/, '');
-  return '@' + noAt.toLowerCase();
-};
+// 🔧 Función para normalizar el username
+function normalizarUsuario(username = '') {
+  return '@' + username.trim().replace(/^@/, '').toLowerCase().replace(/\s+/g, '_');
+}
 
-// Guarda/actualiza por (fecha + username)
 app.post('/seguidores', (req, res) => {
   const { fecha, username, followers } = req.body;
-
-  const uname = normalizeUsername(username);
-  if (!fecha || !uname || typeof followers !== 'number') {
-    return res.status(400).json({ status: 'error', message: 'fecha, username y followers son obligatorios' });
+  if (!fecha || !username || followers == null) {
+    return res.status(400).json({ status: 'error', message: 'Datos incompletos' });
   }
 
-  const idx = seguidores.findIndex(s => s.username === uname && s.fecha === fecha);
-  const registro = { fecha, username: uname, followers };
-
-  if (idx >= 0) seguidores[idx] = registro;     // idempotente si repites misma fecha+cuenta
-  else seguidores.push(registro);
-
+  const usernameNormalizado = normalizarUsuario(username);
+  seguidores.push({ fecha, username: usernameNormalizado, followers });
+  console.log('Guardado:', { fecha, username: usernameNormalizado, followers });
   res.json({ status: 'ok' });
 });
 
 app.get('/seguidores', (req, res) => {
   const { username, fecha } = req.query;
+  if (!fecha || !username) {
+    return res.status(400).json({ status: 'error', message: 'Faltan parámetros username o fecha' });
+  }
 
-  const uname = normalizeUsername(username);
-  if (!fecha || !uname) return res.json({});
-
-  // Búsqueda tolerante: intenta tanto el normalizado como el raw por compatibilidad histórica
-  const raw = String(username || '').trim().toLowerCase();
-  const candidatos = new Set([
-    uname,                           // p.ej. '@smartcret'
-    raw,                             // p.ej. 'smartcret' o '@smartcret'
-    raw.replace(/^@+/, '@')          // asegura un solo '@' si venía con varios o ninguno
-  ]);
-
-  const resultado = seguidores.find(s =>
-    s.fecha === fecha && candidatos.has(String(s.username).toLowerCase())
+  const usernameNormalizado = normalizarUsuario(username);
+  const resultado = seguidores.find(
+    s => s.username === usernameNormalizado && s.fecha === fecha
   );
 
+  console.log('Buscando:', usernameNormalizado, '=>', resultado || 'No encontrado');
   res.json(resultado || {});
 });
 
